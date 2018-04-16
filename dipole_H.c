@@ -258,7 +258,7 @@ printf("REGION CALCULATION FINISHED");
 
 
              xx = (dpx1*dpx2+dpy1*dpy2+dpz1*dpz2)/(sqrt(dpx1*dpx1+dpy1*dpy1+dpz1*dpz1)*sqrt(dpx2*dpx2+dpy2*dpy2+dpz2*dpz2));
-    	     r=region[j][l];
+    	     r=region[i][l];
    
    	     if(r==0){	
                dp1[i-j] += xx;
