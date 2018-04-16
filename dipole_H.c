@@ -13,9 +13,9 @@ double dist (int j, int n1, int i, int n2, double **x, double **y, double **z){
             dy=y[j][n1]-y[i][n2];
             dz=z[j][n1]-z[i][n2];
 
-            dx = dx - box[1]*( (int)(2.0*dx/box[1]) - (int)(dx/box[1]) );
-            dy = dy - box[2]*( (int)(2.0*dy/box[2]) - (int)(dy/box[2]) );
-            dz = dz - box[3]*( (int)(2.0*dz/box[3]) - (int)(dz/box[3]) );
+            dx = dx - box[0]*( (int)(2.0*dx/box[0]) - (int)(dx/box[0]) );
+            dy = dy - box[1]*( (int)(2.0*dy/box[1]) - (int)(dy/box[1]) );
+            dz = dz - box[2]*( (int)(2.0*dz/box[2]) - (int)(dz/box[2]) );
 
             r=sqrt(dx*dx+dy*dy+dz*dz);
             return r;
@@ -34,7 +34,7 @@ int main(int nvar,char **cvar){
     int i,j,k,l,m,r,a,*bufftime,nregion;                        /* count1 is region1 and so on */
     int *count1,*count2,*count3,*count4;
     double **x, **y, **z, xx;
-    double dpx1,dpy1,dpz1,dpx2,dpy2,dpz2,xbox,ybox,zbox,tdiff,cutoff1=2.6,cutoff2=5;          /* dpx1 is O-H for frame j  and dpx2 is for frame i */
+    double dpx1,dpy1,dpz1,dpx2,dpy2,dpz2,tdiff,cutoff1=2.6,cutoff2=5;          /* dpx1 is O-H for frame j  and dpx2 is for frame i */
     double *dp1,*dp2,*dp3,*dp4,*dplg1,*dplg2,*dplg3,*dplg4;
     char buf1[1000],buf2[1000], buf3[1000];
     int **region, *regionprev,*ifound,bufflimit,nmono=40;
@@ -54,9 +54,10 @@ int main(int nvar,char **cvar){
         exit(1);
     }
     box = (double *)malloc((3)*sizeof(double)); 
-    sscanf(cvar[2], "%lf", &box[1]);
-    sscanf(cvar[3], "%lf", &box[2]);
-    sscanf(cvar[4], "%lf", &box[3]);
+    sscanf(cvar[2], "%lf", &box[0]);
+    sscanf(cvar[3], "%lf", &box[1]);
+    sscanf(cvar[4], "%lf", &box[2]);
+    printf(" Box size is %lf %lf %lf \n ",box[0],box[1],box[2]);
 
     printf("Enter the number of atoms in molecule, number of molecules, total number of water molecules present and number of regions \n");
     scanf("%d %d %d %d",&natom,&nmol,&nwater,&nregion);
@@ -234,54 +235,54 @@ printf("REGION CALCULATION FINISHED");
 /* Calculating dipoles */
 //---------------------------------------------------------------------------------------
  for(j=0;j<nframes;j=j+nskip){
-   for(i=j;i<nframes && i<j+tstep;i++){
-     for(k=natom*nmol;k<ntotal;k=k+3){
+    for(k=natom*nmol;k<ntotal;k=k+3){
        for(l=k+1;l<k+3;l++){ 
 
           dpx1=x[j][k]-x[j][l];
           dpy1=y[j][k]-y[j][l];
           dpz1=z[j][k]-z[j][l];
 
-          dpx2=x[i][k]-x[i][l];
-          dpy2=y[i][k]-y[i][l];
-          dpz2=z[i][k]-z[i][l];
+          dpx1 = dpx1 - box[0]*( (int)(2.0*dpx1/box[0]) - (int)(dpx1/box[0]) );
+          dpy1 = dpy1 - box[1]*( (int)(2.0*dpy1/box[1]) - (int)(dpy1/box[1]) );
+          dpz1 = dpz1 - box[2]*( (int)(2.0*dpz1/box[2]) - (int)(dpz1/box[2]) );
+
+          for(i=j;i<nframes && i<j+tstep;i++){
+
+             dpx2=x[i][k]-x[i][l];
+             dpy2=y[i][k]-y[i][l];
+             dpz2=z[i][k]-z[i][l];
           
-
-          dpx1 = dpx1 - box[1]*( (int)(2.0*dpx1/box[1]) - (int)(dpx1/box[1]) );
-          dpy1 = dpy1 - box[2]*( (int)(2.0*dpy1/box[2]) - (int)(dpy1/box[2]) );
-          dpz1 = dpz1 - box[3]*( (int)(2.0*dpz1/box[3]) - (int)(dpz1/box[3]) );
- 
-          dpx2 = dpx2 - box[1]*( (int)(2.0*dpx2/box[1]) - (int)(dpx2/box[1]) );
-          dpy2 = dpy2 - box[2]*( (int)(2.0*dpy2/box[2]) - (int)(dpy2/box[2]) );
-          dpz2 = dpz2 - box[3]*( (int)(2.0*dpz2/box[3]) - (int)(dpz2/box[3]) );
+             dpx2 = dpx2 - box[0]*( (int)(2.0*dpx2/box[0]) - (int)(dpx2/box[0]) );
+             dpy2 = dpy2 - box[1]*( (int)(2.0*dpy2/box[1]) - (int)(dpy2/box[1]) );
+             dpz2 = dpz2 - box[2]*( (int)(2.0*dpz2/box[2]) - (int)(dpz2/box[2]) );
 
 
-          xx = (dpx1*dpx2+dpy1*dpy2+dpz1*dpz2)/(sqrt(dpx1*dpx1+dpy1*dpy1+dpz1*dpz1)*sqrt(dpx2*dpx2+dpy2*dpy2+dpz2*dpz2));
- 	  r=region[j][l];
-
-	  if(r==0){	
-            dp1[i-j] += xx;
-            dplg1[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-             count1[i-j]++;
-	  }
-	  if(r==1){	
-            dp2[i-j] += xx;
-            dplg2[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-            count2[i-j]++;
-	  }
-	  if(r==2){	
-            dp3[i-j] += xx;
-            dplg3[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-            count3[i-j]++;
-	  }
-	  if(r==3){	
-            dp4[i-j] += xx;
-            dplg4[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-            count4[i-j]++;
-	  }
+             xx = (dpx1*dpx2+dpy1*dpy2+dpz1*dpz2)/(sqrt(dpx1*dpx1+dpy1*dpy1+dpz1*dpz1)*sqrt(dpx2*dpx2+dpy2*dpy2+dpz2*dpz2));
+    	     r=region[j][l];
+   
+   	     if(r==0){	
+               dp1[i-j] += xx;
+               dplg1[i-j] += 0.5*(3.0 * xx*xx - 1.0);
+                count1[i-j]++;
+   	     }
+   	     if(r==1){	
+               dp2[i-j] += xx;
+               dplg2[i-j] += 0.5*(3.0 * xx*xx - 1.0);
+               count2[i-j]++;
+   	     }
+   	     if(r==2){	
+               dp3[i-j] += xx;
+               dplg3[i-j] += 0.5*(3.0 * xx*xx - 1.0);
+               count3[i-j]++;
+   	     }
+   	     if(r==3){	
+               dp4[i-j] += xx;
+               dplg4[i-j] += 0.5*(3.0 * xx*xx - 1.0);
+               count4[i-j]++;
+   	     }
+          }
        }
-     }
-   }
+    }
  }
 
 
