@@ -3,21 +3,21 @@
 #include<string.h>
 #include<math.h>
 
-double *box;
+double *box,*d;
 
-double dist (int j, int n1, int i, int n2, double **x, double **y, double **z){
+double dist (int j, int n1, int i, int n2, double **x, double **y, double **z, double *d){
             
-            double dx,dy,dz,r;
+            double r;
 
-            dx=x[j][n1]-x[i][n2];
-            dy=y[j][n1]-y[i][n2];
-            dz=z[j][n1]-z[i][n2];
+            d[0]=x[j][n1]-x[i][n2];
+            d[1]=y[j][n1]-y[i][n2];
+            d[2]=z[j][n1]-z[i][n2];
 
-            dx = dx - box[0]*( (int)(2.0*dx/box[0]) - (int)(dx/box[0]) );
-            dy = dy - box[1]*( (int)(2.0*dy/box[1]) - (int)(dy/box[1]) );
-            dz = dz - box[2]*( (int)(2.0*dz/box[2]) - (int)(dz/box[2]) );
+            d[0] = d[0] - box[0]*( (int)(2.0*d[0]/box[0]) - (int)(d[0]/box[0]) );
+            d[1] = d[1] - box[1]*( (int)(2.0*d[1]/box[1]) - (int)(d[1]/box[1]) );
+            d[2] = d[2] - box[2]*( (int)(2.0*d[2]/box[2]) - (int)(d[2]/box[2]) );
 
-            r=sqrt(dx*dx+dy*dy+dz*dz);
+            r=sqrt(d[0]*d[0]+d[1]*d[1]+d[2]*d[2]);
             return r;
 }
 
@@ -32,10 +32,10 @@ int main(int nvar,char **cvar){
     FILE *rptr,*wptr1,*wptr2,*wptr3,*wptr4,*wptr5;
     int natom,nwater,ntotal,nmol,nframes,nskip,tstep,wn=0;
     int i,j,k,l,m,r,a,*bufftime,nregion;                        /* count1 is region1 and so on */
-    int *count1,*count2,*count3,*count4;
-    double **x, **y, **z, xx;
-    double dpx1,dpy1,dpz1,dpx2,dpy2,dpz2,tdiff,cutoff1=2.6,cutoff2=5;          /* dpx1 is O-H for frame j  and dpx2 is for frame i */
-    double *dp1,*dp2,*dp3,*dp4,*dplg1,*dplg2,*dplg3,*dplg4;
+    int **count;
+    double **x, **y, **z, **dp, **dplg, xx;
+    double tdiff,cutoff1=2.6,cutoff2=5;          /* d1[0] is O-H for frame j  and d2[0] is for frame i */
+    double *d1,*d2;
     char buf1[1000],buf2[1000], buf3[1000];
     int **region, *regionprev,*ifound,bufflimit,nmono=40;
     double *regiontot;
@@ -53,7 +53,9 @@ int main(int nvar,char **cvar){
         printf("  ERROR: could not open trajectory file %s\n",cvar[1]);
         exit(1);
     }
+
     box = (double *)malloc((3)*sizeof(double)); 
+
     sscanf(cvar[2], "%lf", &box[0]);
     sscanf(cvar[3], "%lf", &box[1]);
     sscanf(cvar[4], "%lf", &box[2]);
@@ -65,8 +67,8 @@ int main(int nvar,char **cvar){
     printf("Enter the total number of frames and skip value for reference frame and time betweem two frames \n");
     scanf("%d %d %lf",&nframes,&nskip,&tdiff);
     ntotal=natom*nmol+3*nwater;
-    tstep=(int)20.0/tdiff;
-    bufflimit=(int)1.0/tdiff;
+    tstep=(int)(20.0/tdiff);
+    bufflimit=(int)(0.5/tdiff);
     printf("Total number of atoms present in the system is %d bufflimit is %d \n",ntotal,bufflimit);
 
     wptr1=fopen("rotOside.dat","w");
@@ -89,57 +91,18 @@ int main(int nvar,char **cvar){
     for(i=0;i<nframes;i++) z[i] = (double *)malloc(ntotal*sizeof(double));
 
 
-/*
-  ount = (int **)malloc(nframes*sizeof(int *));
- for(i=0;i<nframes;i++) count[i] = (int *)malloc(nregion*sizeof(int));
+    d   = (double *)malloc((3)*sizeof(double)); 
+    d1  = (double *)malloc((3)*sizeof(double)); 
+    d2  = (double *)malloc((3)*sizeof(double)); 
 
+    dplg = (double **)malloc(nregion*sizeof(double *));
+    for(i=0;i<nregion;i++) dplg[i] = (double *)malloc(tstep*sizeof(double)); 
 
-  dp = (double **)malloc(nframes*sizeof(double *));
- for(i=0;i<nframes;i++) x[i] = (double *)malloc(nregion*sizeof(double));
-
-
-  dplg = (double **)malloc(nframes*sizeof(double *));
- for(i=0;i<nframes;i++) x[i] = (double *)malloc(nregion*sizeof(double));
-
-*/
-
-
-    dplg1 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dplg1[i]=0;
-
-    dplg2 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dplg2[i]=0;
-
-    dplg3 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dplg3[i]=0;
-
-    dplg4 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dplg4[i]=0;
-
-    dp1 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dp1[i]=0;
-
-    dp2 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dp2[i]=0;
-
-    dp3 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dp3[i]=0;
+    dp   = (double **)malloc((nregion)*sizeof(double *));
+    for(i=0;i<nregion;i++) dp[i] = (double *)malloc(tstep*sizeof(double)); 
     
-    dp4 = (double *)malloc((nframes)*sizeof(double));
-    for(i=0;i<nframes;i++) dp4[i]=0;
-    
-    count1 = (int *)malloc((nframes)*sizeof(int));
-    for(i=0;i<nframes;i++) count1[i]=0;
-
-    count2 = (int *)malloc((nframes)*sizeof(int));
-    for(i=0;i<nframes;i++) count2[i]=0;
-
-    count3 = (int *)malloc((nframes)*sizeof(int));
-    for(i=0;i<nframes;i++) count3[i]=0;
-
-    count4 = (int *)malloc((nframes)*sizeof(int));
-    for(i=0;i<nframes;i++) count4[i]=0;
-
+    count = (int **)malloc(nregion*sizeof(int *));
+    for(i=0;i<nregion;i++) count[i] = (int *)malloc(tstep*sizeof(int)); 
 
     region = (int **)malloc(nframes*sizeof(int *));
     for(i=0;i<nframes;i++) region[i] = (int *)malloc(ntotal*sizeof(int));
@@ -153,16 +116,13 @@ int main(int nvar,char **cvar){
     regiontot = (double *)malloc((nregion)*sizeof(double));
     for(i=0;i<nregion;i++) regiontot[i]=0;
 
-
     bufftime = (int *)malloc((ntotal)*sizeof(int));
     for(i=0;i<ntotal;i++) bufftime[i]=0;
 
 
-/*
-for(i=0;i<nframes;i++){for(j=0;j<nregion;j++)	count[i][j]=0;}
-for(i=0;i<nframes;i++){for(j=0;j<nregion;j++)	dp[i][j]=0;}
-for(i=0;i<nframes;i++){for(j=0;j<nregion;j++)	dplg[i][j]=0;}
-*/
+for(i=0;i<nregion;i++){ for(j=0;j<tstep;j++) count[i][j]=0;}
+for(i=0;i<nregion;i++){ for(j=0;j<tstep;j++) dp[i][j]=0;}
+for(i=0;i<nregion;i++){ for(j=0;j<tstep;j++) dplg[i][j]=0;}
 
 printf("MEMORY ALLOCATION  FINISHED");
 
@@ -196,16 +156,16 @@ printf("FRAME READING  FINISHED");
           for(l=k+1;l<k+3;l++){
 
              for(a=0;a<nmol*natom;a=a+natom){
-                if(dist(j,l,j,a+1,x,y,z)<cutoff1){ region[j][l]=3; ifound[l]=1; break; }
+                if(dist(j,l,j,a+1,x,y,z,d)<cutoff1){ region[j][l]=3; ifound[l]=1; break; }
              }
              if(ifound[l]!=1){
                for(a=0;a<nmol*natom;a=a+natom){
-                  if(dist(j,l,j,a+10,x,y,z)<cutoff1 || dist(j,l,j,a+13,x,y,z)<cutoff1){   region[j][l]=0; ifound[l]=1; break; }  
+                  if(dist(j,l,j,a+10,x,y,z,d)<cutoff1 || dist(j,l,j,a+13,x,y,z,d)<cutoff1){   region[j][l]=0; ifound[l]=1; break; }  
                }
              } 
              if(ifound[l]!=1){
                 for(a=0;a<nmol*natom;a=a+natom){
-                   if(dist(j,k,j,a+0,x,y,z)<cutoff2 || dist(j,k,j,a+4,x,y,z)<cutoff2 || dist(j,k,j,a+5,x,y,z)<cutoff2 || dist(j,k,j,a+6,x,y,z)<cutoff2 || dist(j,k,j,a+15,x,y,z)<cutoff2 || dist(j,k,j,a+16,x,y,z)<cutoff2){   region[j][l]=1; ifound[l]=1; break; }  
+                   if(dist(j,k,j,a+0,x,y,z,d)<cutoff2 || dist(j,k,j,a+4,x,y,z,d)<cutoff2 || dist(j,k,j,a+5,x,y,z,d)<cutoff2 || dist(j,k,j,a+6,x,y,z,d)<cutoff2 || dist(j,k,j,a+15,x,y,z,d)<cutoff2 || dist(j,k,j,a+16,x,y,z,d)<cutoff2){   region[j][l]=1; ifound[l]=1; break; }  
                 }
              } 
              if(ifound[l]!=1) region[j][l]=2;
@@ -238,48 +198,20 @@ printf("REGION CALCULATION FINISHED");
     for(k=natom*nmol;k<ntotal;k=k+3){
        for(l=k+1;l<k+3;l++){ 
 
-          dpx1=x[j][k]-x[j][l];
-          dpy1=y[j][k]-y[j][l];
-          dpz1=z[j][k]-z[j][l];
-
-          dpx1 = dpx1 - box[0]*( (int)(2.0*dpx1/box[0]) - (int)(dpx1/box[0]) );
-          dpy1 = dpy1 - box[1]*( (int)(2.0*dpy1/box[1]) - (int)(dpy1/box[1]) );
-          dpz1 = dpz1 - box[2]*( (int)(2.0*dpz1/box[2]) - (int)(dpz1/box[2]) );
+          xx = dist(j,k,j,l,x,y,z,d);
+          for(m=0;m<3;m++) d1[m] = d[m];
 
           for(i=j;i<nframes && i<j+tstep;i++){
 
-             dpx2=x[i][k]-x[i][l];
-             dpy2=y[i][k]-y[i][l];
-             dpz2=z[i][k]-z[i][l];
-          
-             dpx2 = dpx2 - box[0]*( (int)(2.0*dpx2/box[0]) - (int)(dpx2/box[0]) );
-             dpy2 = dpy2 - box[1]*( (int)(2.0*dpy2/box[1]) - (int)(dpy2/box[1]) );
-             dpz2 = dpz2 - box[2]*( (int)(2.0*dpz2/box[2]) - (int)(dpz2/box[2]) );
+             xx = dist(i,k,i,l,x,y,z,d);
+             for(m=0;m<3;m++) d2[m] = d[m];
 
-
-             xx = (dpx1*dpx2+dpy1*dpy2+dpz1*dpz2)/(sqrt(dpx1*dpx1+dpy1*dpy1+dpz1*dpz1)*sqrt(dpx2*dpx2+dpy2*dpy2+dpz2*dpz2));
+             xx = (d1[0]*d2[0]+d1[1]*d2[1]+d1[2]*d2[2])/(sqrt(d1[0]*d1[0]+d1[1]*d1[1]+d1[2]*d1[2])*sqrt(d2[0]*d2[0]+d2[1]*d2[1]+d2[2]*d2[2]));
     	     r=region[i][l];
    
-   	     if(r==0){	
-               dp1[i-j] += xx;
-               dplg1[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-                count1[i-j]++;
-   	     }
-   	     if(r==1){	
-               dp2[i-j] += xx;
-               dplg2[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-               count2[i-j]++;
-   	     }
-   	     if(r==2){	
-               dp3[i-j] += xx;
-               dplg3[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-               count3[i-j]++;
-   	     }
-   	     if(r==3){	
-               dp4[i-j] += xx;
-               dplg4[i-j] += 0.5*(3.0 * xx*xx - 1.0);
-               count4[i-j]++;
-   	     }
+             dp[r][i-j] += xx;
+             dplg[r][i-j] += 0.5*(3.0 * xx*xx - 1.0);
+             count[r][i-j]++;
           }
        }
     }
@@ -292,10 +224,10 @@ printf("DIPOLE CALCULATION FINISHED \n");
 
 /* printing the result */
 //-------------------------------------------------------------------------------------------
-for(i=0;i<tstep;i++)   fprintf(wptr1,"%lf \t %lf \t %lf \n",i*tdiff,(dp1[i]/count1[i]),(dplg1[i]/count1[i]));
-for(i=0;i<tstep;i++)   fprintf(wptr2,"%lf \t %lf \t %lf \n",i*tdiff,(dp2[i]/count2[i]),(dplg2[i]/count2[i]));
-for(i=0;i<tstep;i++)   fprintf(wptr3,"%lf \t %lf \t %lf \n",i*tdiff,(dp3[i]/count3[i]),(dplg3[i]/count3[i]));
-for(i=0;i<tstep;i++)   fprintf(wptr5,"%lf \t %lf \t %lf \n",i*tdiff,(dp4[i]/count4[i]),(dplg4[i]/count4[i]));
+for(i=0;i<tstep;i++)   fprintf(wptr1,"%lf \t %lf \t %lf \n",i*tdiff,(dp[0][i]/count[0][i]),(dplg[0][i]/count[0][i]));
+for(i=0;i<tstep;i++)   fprintf(wptr2,"%lf \t %lf \t %lf \n",i*tdiff,(dp[1][i]/count[1][i]),(dplg[1][i]/count[1][i]));
+for(i=0;i<tstep;i++)   fprintf(wptr3,"%lf \t %lf \t %lf \n",i*tdiff,(dp[2][i]/count[2][i]),(dplg[2][i]/count[2][i]));
+for(i=0;i<tstep;i++)   fprintf(wptr5,"%lf \t %lf \t %lf \n",i*tdiff,(dp[3][i]/count[3][i]),(dplg[3][i]/count[3][i]));
 
 
    for(i=0;i<nframes;i++){
